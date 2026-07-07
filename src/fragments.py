@@ -4,12 +4,14 @@ import struct
 from io import BytesIO
 class Fragment(ABC):
     _fragments: dict[str,Fragment] = {}
-    def __init_subclass__(cls,id: str=None):
+    _typecolors: dict[str,int] = {}
+    def __init_subclass__(cls,id: str=None,color=0xffffffff):
         #print(id)
         if (id != None) and id in cls._fragments.keys():
             raise KeyError("id already in use, pick another looser")
         else:
             cls._fragments[id] = cls
+            cls._typecolors[id] = color
         return super().__init_subclass__()
     @abstractmethod 
     def decode(encoded: BytesIO) -> Fragment:
@@ -76,7 +78,6 @@ class Pattern(Fragment,id="trickster:pattern"):
         return Pattern(lyst)
     def fromInt(pattern: int) -> Pattern:
         lines = []
-        print(pattern & 0x1)
         for i in range(32):
             if ((pattern >> i) & 0x1) == 1:
                 lines.append(_possibleLines[i])
@@ -85,12 +86,10 @@ class Pattern(Fragment,id="trickster:pattern"):
         result = 0 
         for i in range(32):
             if _possibleLines[i] in self.entries:
-                print(result)
                 result |= 1 << i
         return result
     def of(*args: int) -> Pattern:
         lines = [(args[x],args[x+1]) for x in range(len(args)-1)]
-        print(lines)
         valid = True
         for line in lines:
             if not (line in _possibleLines):
@@ -99,14 +98,11 @@ class Pattern(Fragment,id="trickster:pattern"):
             raise ValueError("Invalid Pattern!")
         return Pattern(lines)
     def decode(encoded: BytesIO):
-        print(encoded.getvalue())
         dat = encoded.read(4)
         try:
             i = struct.unpack(">i",dat)[0]
-            print(i)
             return Pattern.fromInt(i)
         except ValueError:
-            print("err")
             return Pattern.of()
         # print(encoded.getvalue())
         # length = encoded.read(1)[0]
@@ -121,3 +117,19 @@ class Pattern(Fragment,id="trickster:pattern"):
         return bites
     def __repr__(self):
         return f"Pattern({self.entries})"
+class TypeFragment(Fragment,id="trickster:type"):
+    typeid: str
+    def __init__(self,id: str):
+        if not (id in Fragment._fragments.keys()):
+            raise KeyError(f"Unknown Fragment Type: {id}")
+        self.typeid = id
+        super().__init__()
+    def decode(encoded: BytesIO):
+        len = encoded.read(1)[0]
+        return TypeFragment(str(encoded.read(len),"utf-8"))
+    def encode(self):
+        byte = bytes(len(self.typeid))
+        byte += bytes(self.typeid,"utf-8")
+        return byte
+    def __repr__(self):
+        return f"TypeFragment({self.typeid.__repr__()})"

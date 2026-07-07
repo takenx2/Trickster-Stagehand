@@ -2,52 +2,71 @@ from __future__ import annotations
 import base64,gzip
 from io import BytesIO
 from fragments import *
-import struct
-from enum import Enum
-
-b64 = "YxMpKcpMzi4uSS2yKi5IzcmJL0gsKuFDCJblZ6YwAAA8irKGJgAAAA==" #SpellPart(Void)
-b64 = "YxMpKcpMzi4uSS2yKi5IzcmJL0gsKuFDCJblZ6YwMjIzMDCAMAMjI5ocUIyJAQBm1nz5RgAAAA==" #SpellPart(Void,[Void])
-b64 = "YxMpKcpMzi4uSS2yKi5IzcmJL0gsKuFDCJblZ6YwMTIzMDCAMAMjI5ocUIyJgZA8AIAmv2lmAAAA" #SpellPart(Void,[Void,Void])
-b64 = "YxMpKcpMzi4uSS2yKi5IzcmJL0gsKuFDCJblZ6YwMzIzMDCAMAMjI5ocUIyJgVJ5AKRjhVSGAAAA" #SpellPart(Void,[Void,Void,Void])
-b64 = "YxMpKcpMzi4uSS2yKi5IzcmJL0gsKuFDCJblZ6YwMzIzMDCAMAMjI5ocUIyJgZENnzwejRDdBEwHAHCd0+WkAAAA" #SpellPart(Void,[Void,SpellPart(Void,[Void]),Void])
+from struct import unpack
+from typing import Iterable
+from collections import deque
 
 GZIP_HEADER = bytes([0x1f,0x8b,0x08,0x00,0x00,0x00,0x00,0x00,0x00,0xff])
 PROTOCOL_VERSION = 6
 
-
+def decode_spell_instructions(data: BytesIO) -> list[tuple[int,Fragment|None]]:
+    instructions = []
+    l1 = unpack("b",data.read(1))[0]
+    for i in range(l1):
+            if data.read(1)==b'\x01': 
+                l2 = unpack("b",data.read(1))[0]
+                for z in range(l2):
+                    v = data.read(5)
+                    d = unpack(">ib",v)
+                    x = None
+                    if d[0]==1:
+                        x = decode_fragment(data)
+                    elif d[0]==2:
+                        pass
+                    instructions.append((d[0],x))
+    return instructions
 class SpellPart(Fragment,id="trickster:spell_part"):
-    #ENDEC
-    #fragment - 'glyph'
-    #
     glyph: Fragment
     subparts: list[SpellPart]
-    def __init__(self,glyph: Fragment,subparts: list[Fragment]=[]):
+    def __init__(self,glyph: Fragment,subparts: list[Fragment]|None = None):
+        if subparts==None:
+            subparts=[]
         self.glyph = glyph
         self.subparts = subparts
         super().__init__()
     def decode(data: BytesIO):
         glyph = decode_fragment(data)
-        #print(data.read())
-        #TODO subparts
-        print(data.read(1))
-        subparts = []
-        tell = data.tell()
-        prev = b'\x00'
-        while len(data.read())>0:
-            data.seek(tell)
-            red = data.read(2)
-            print(red)
-            if red==b'\x01\x01':
-                subparts.append(decode_fragment(data))
-                print(data.read(1))
-            prev = red
-            tell = data.tell()
-
-        return SpellPart(glyph,subparts)
+        print(data.getvalue())
+        instructions: list[tuple[int,Fragment|None]] = decode_spell_instructions(data)
+        tree: list[SpellPart] = list([SpellPart(glyph)])
+        for i in instructions:
+            match i[0]:
+                case 3:
+                    tree.append(SpellPart(VoidFragment()))
+                case 1:
+                    tree[-1].glyph = i[1]
+                case 2:
+                    part = tree.pop()
+                    tree[-1].subparts.append(part)
+        return tree[0]
     def encode(self):
-        return bytes()
+        byte = self.halfencode()
+        byte = byte[5:]
+        return byte
+    def halfencode(self) -> bytes:
+        byte = bytes()
+        byte+=(1).to_bytes(4)+b'\x01'+encode_fragment(self.glyph)
+        if len(self.subparts)>0:
+            byte+=b'\x01\x01'+len(self.subparts*3).to_bytes()
+            for part in self.subparts:
+                byte+=(3).to_bytes(4)+b'\x00'
+                byte+=part.halfencode()
+                byte+=(2).to_bytes(4)+b'\x00'
+        return byte
     def __repr__(self):
-        return f'SpellPart({self.glyph}{f", {self.subparts}" if len(self.subparts)>0 else ""})'
+        return f'SpellPart({self.glyph}{f", {self.subparts}" if len(self.subparts)>0 else ""})' 
+type Tree = list[Fragment|Tree]
+
 class ListFragment(Fragment,id="trickster:list"):
     fragments: list[Fragment]
     def __init__(self,iter: Iterable[Fragment]):
@@ -59,7 +78,6 @@ class ListFragment(Fragment,id="trickster:list"):
         frgs = []
         for i in range(encoded.read(1)[0]):
             frgs.append(decode_fragment(encoded))
-            pass
         return ListFragment(frgs)
     def encode(self):
         bite = bytes()
@@ -81,7 +99,6 @@ def compress_fragment(fragment: Fragment) -> str:
     bite = encode_fragment(fragment)
     compressed = gzip.compress(PROTOCOL_VERSION.to_bytes()+bite)[len(GZIP_HEADER):]
     return str(base64.b64encode(compressed),"utf-8")
-
 def decode_fragment(byteData: bytes|BytesIO) -> Fragment:
     if type(byteData) is bytes:
         data = BytesIO(byteData)
@@ -89,7 +106,6 @@ def decode_fragment(byteData: bytes|BytesIO) -> Fragment:
         data = byteData
     length = data.read(1)
     id = str(data.read(length[0]),"utf-8")
-    print(id)
     frag = Fragment._fragments.get(id,None)
     if frag:
         ret = frag.decode(data)
@@ -106,6 +122,3 @@ def encode_fragment(fragment: Fragment) -> bytes:
     bite += bytes(id,"utf-8")
     bite += fragment.encode()
     return bite
-print(decompress_fragment(b64))
-# compd = compress_fragment(Pattern.of(1,4,7))
-# print(compd)
