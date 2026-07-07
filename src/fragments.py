@@ -2,6 +2,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import struct
 from io import BytesIO
+from blunders import *
+from copy import deepcopy
 class Fragment(ABC):
     _fragments: dict[str,Fragment] = {}
     _typecolors: dict[str,int] = {}
@@ -13,12 +15,24 @@ class Fragment(ABC):
             cls._fragments[id] = cls
             cls._typecolors[id] = color
         return super().__init_subclass__()
+    def copy[T](self: T) -> T:
+        return deepcopy(self)
     @abstractmethod 
-    def decode(encoded: BytesIO) -> Fragment:
-        pass
+    def decode(encoded: BytesIO) -> Fragment: ...
     @abstractmethod
-    def encode(self) -> bytes:
-        pass
+    def encode(self) -> bytes: ...
+class AddableFragment(Fragment):
+    @abstractmethod
+    def add(self,other: AddableFragment) -> AddableFragment: ...
+class SubtractableFragment(Fragment):
+    @abstractmethod
+    def sub(self,other: SubtractableFragment) -> SubtractableFragment: ...
+class DivisibleFragment(Fragment):
+    @abstractmethod
+    def div(self,other: DivisibleFragment) -> DivisibleFragment: ...
+class MultiplicableFragment(Fragment):
+    @abstractmethod
+    def mul(self,other: MultiplicableFragment) -> MultiplicableFragment: ...
 
 class GenericFragment[T](Fragment):
     value: T
@@ -27,11 +41,21 @@ class GenericFragment[T](Fragment):
         super().__init__()
     def __repr__(self):
         return f"{self.__class__.__name__}({self.value.__repr__()})"
-class NumberFragment(GenericFragment[float],id="trickster:number"):
+    def __str__(self):
+        return self.value.__str__()
+class NumberFragment(AddableFragment,SubtractableFragment,GenericFragment[float],id="trickster:number"):
     def decode(encoded: BytesIO):
         return NumberFragment(struct.unpack(">d",encoded.read(8))[0])
     def encode(self):
         return struct.pack(">d",self.value)
+    def add(self,other):
+        if isinstance(other,NumberFragment):
+            return NumberFragment(self.value+other.value)
+        raise ArithmeticBlunder
+    def sub(self, other):
+        if isinstance(other,NumberFragment):
+            return NumberFragment(self.value-other.value)
+        raise ArithmeticBlunder
 class StringFragment(GenericFragment[str],id="trickster:string"):
     def decode(encoded: BytesIO):
         size = encoded.read(1)[0]
@@ -41,7 +65,11 @@ class StringFragment(GenericFragment[str],id="trickster:string"):
         Bite+=len(self.value).to_bytes()
         Bite+=bytes(self.value,"utf-8")
         return Bite
-
+class BooleanFragment(GenericFragment[bool],id="trickster:boolean"):
+    def decode(encoded: BytesIO):
+        return BooleanFragment(encoded.read(1)==b'\x01')
+    def encode(self):
+        return b'\x00' if self.value else b'\x01'
 class VoidFragment(Fragment,id="trickster:void"):
     def __init__(self):
         pass
@@ -51,6 +79,19 @@ class VoidFragment(Fragment,id="trickster:void"):
         return VoidFragment()
     def encode(self):
         return bytes()
+    def __str__(self):
+        return "Void"
+class ZalgoFragment(Fragment,id="trickster:zalgo"):
+    def __init__(self):
+        pass
+    def __repr__(self):
+        return "ZalgoFragment()"
+    def decode(encoded):
+        return ZalgoFragment()
+    def encode(self):
+        return bytes()
+    def __str__(self):
+        return "?????"
 _possibleLines: list[tuple[int,int]] = []
 for p1 in range(9):
     for p2 in range(9):
@@ -61,21 +102,24 @@ def sort_with(tup: tuple[int,int]):
     return _possibleLines.index(tup)
 #print(__possibleLines)
 class Pattern(Fragment,id="trickster:pattern"):
-    entries: list[tuple[int,int]]
-    def __init__(self,entries: list[tuple[int,int]]):
-        self.entries = entries
+    entries: set[tuple[int,int]]
+    def __init__(self,entries: set[tuple[int,int]]):
+        self.entries = set(entries)
     def fromBytes(bites: bytes) -> Pattern:
-        lyst: list[tuple[int,int]] = []
+        lyst: set[tuple[int,int]] = set()
         last = None
         for byte in bites:
             if last!=None:
                 if last<byte:
-                    lyst.append((last,byte))
+                    lyst.add((last,byte))
                 else:
-                    lyst.append((byte,last))
+                    lyst.add((byte,last))
             last = byte
-        lyst.sort(key=sort_with)
         return Pattern(lyst)
+    def __hash__(self):
+        return hash(self.toInt())
+    def __eq__(self, value):
+        return isinstance(value,Pattern) and self.toInt()==value.toInt()
     def fromInt(pattern: int) -> Pattern:
         lines = []
         for i in range(32):
@@ -89,7 +133,7 @@ class Pattern(Fragment,id="trickster:pattern"):
                 result |= 1 << i
         return result
     def of(*args: int) -> Pattern:
-        lines = [(args[x],args[x+1]) for x in range(len(args)-1)]
+        lines = [(min(args[x],args[x+1]),max(args[x],args[x+1])) for x in range(len(args)-1)]
         valid = True
         for line in lines:
             if not (line in _possibleLines):
@@ -117,6 +161,57 @@ class Pattern(Fragment,id="trickster:pattern"):
         return bites
     def __repr__(self):
         return f"Pattern({self.entries})"
+    def __str__(self):
+        term = self.get_terminal()
+        s = ""
+        entry = self.entries.copy()
+        last = None
+        while len(entry)>0:
+            if last == None:
+                if len(term)>0:
+                    last = term.pop()
+                else:
+                    last = list(entry)[0][0]
+        
+            s+=str(last)
+            found = False
+            for line in entry.copy():
+                if line[0]==last:
+                    print(line)
+                    entry.remove(line)
+                    last = line[1]
+                    found = True
+                    break
+                elif line[1]==last:
+                    print(line)
+                    entry.remove(line)
+                    last = line[0]
+                    found = True
+                    break
+            
+            if not found:
+                s+="|"
+                try:
+                    term.remove(last)
+                except:
+                    pass
+                last = None
+        s+=str(last)
+        return s
+
+            
+        return s
+    def get_terminal(self) -> list[int]:
+        dots = [False]*9
+        for entry in self.entries:
+            dots[entry[0]] = not dots[entry[0]]
+            dots[entry[1]] = not dots[entry[1]]
+        ret = list()
+        for x in range(9):
+            if dots[x]:
+                ret.append(x)
+        return ret
+
 class TypeFragment(Fragment,id="trickster:type"):
     typeid: str
     def __init__(self,id: str):
@@ -133,3 +228,4 @@ class TypeFragment(Fragment,id="trickster:type"):
         return byte
     def __repr__(self):
         return f"TypeFragment({self.typeid.__repr__()})"
+    

@@ -1,5 +1,9 @@
-import decode
+import transfer,tricks,metafragments,fragments
 
-read = input()
+read = input("ENTER FRAGMENT > ")
 
-print(decode.decompress_fragment(read))
+fragment = transfer.decompress_fragment(read)
+if isinstance(fragment,metafragments.SpellPart):
+    tricks.say(fragment)
+    fragment=fragment.run_glyph()
+tricks.say(fragment)
