@@ -24,7 +24,6 @@ class UnknownTrickBlunder(Blunder):
         return f"Unknown Trick with pattern: {self.pattern}"
 
 
-
 def sortacheck(v: any,clas: str) -> bool:
     for c in v.__class__.__mro__:
         if c.__name__ == clas:
@@ -34,18 +33,21 @@ class Trick():
     _tricks: dict[Pattern,Trick] = {}
     _trick_names: dict[Trick,str] = {}
     overloads: list[Overload]
-    def __init__(self,pattern:Pattern,overloads: list[Overload],name:str=""):
-        self.overloads = overloads
+    def __init__(self,pattern:Pattern,overloads: list[Overload]|Overload,name:str=""):
+        if isinstance(overloads,list):
+            self.overloads = overloads
+        else: 
+            self.overloads = [overloads]
         if pattern in Trick._tricks.keys():
             raise KeyError(f"Pattern {pattern} already in use!")
         Trick._trick_names[self] = name
         Trick._tricks[pattern] = self
-    def call(self,*args: Fragment) -> Fragment:        
+    def call(self,args: list[Fragment],*frags: Fragment) -> Fragment:        
         for overload in self.overloads:
             sig = inspect.signature(overload)
             i = 0
             try: 
-                bound = sig.bind(*args)
+                bound = sig.bind(args,*frags)
                 bound.apply_defaults()
             except TypeError:
                 continue
@@ -69,27 +71,16 @@ class Trick():
                 raise SignatureBlunder(self,*args)
     def __str__(self):
         Trick._trick_names.get(self,"Unknown")
-def callTrick(pat: Pattern,*args: Fragment) -> Fragment:
+def callTrick(pat: Pattern,args:list[Fragment],*frags: Fragment) -> Fragment:
     trick: Trick = Trick._tricks.get(pat,None)
     if trick==None:
         raise UnknownTrickBlunder(pat)
-    return trick.call(*args)
-def say(*fragments: Fragment) -> Fragment:
+    return trick.call(args,*frags)
+
+def show(args: list[Fragment],*fragments: Fragment) -> Fragment:
     e = ""
     for frag in fragments:
         e+=str(frag)+", "
     print(f"({e[:-2]})")
     return fragments[0] or VoidFragment()
-Trick(Pattern.of(3,4,5,8,7,6,3),[say],"Showcase Ploy")
-def add(*fragments: AddableFragment) -> AddableFragment:
-    ret = fragments[0]
-    for fragment in fragments[1:]:
-        ret = ret.add(fragment)
-    return ret
-Trick(Pattern.of(7,4,0,1,2,4),[add],"Annexation Stratagem")
-def sub(*fragments: SubtractableFragment) -> SubtractableFragment:
-    ret = fragments[0]
-    for fragment in fragments[1:]:
-        ret = ret.sub(fragment)
-    return ret
-Trick(Pattern.of(2,4,6,7,8,4),[sub],"Desertion Stratagem")
+Trick(Pattern.of(3,4,5,8,7,6,3),show,"Showcase Ploy")

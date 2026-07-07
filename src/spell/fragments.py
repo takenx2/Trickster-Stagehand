@@ -2,7 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import struct
 from io import BytesIO
-from blunders import *
+from spell.blunders import *
 from copy import deepcopy
 class Fragment(ABC):
     _fragments: dict[str,Fragment] = {}

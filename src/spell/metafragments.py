@@ -1,10 +1,10 @@
 from __future__ import annotations
 from fragments import *
-from tricks import callTrick
-from transfer import decode_fragment,encode_fragment
+from spell.trick.base import callTrick
+from transfer import unpack_fragment,pack_fragment
 from struct import unpack
 from typing import Iterable
-# fragments that cant go in `fragments.py` for whatever reason...
+# fragments that cant go in `fragments.py` for reason xyz...
 
 type Tree = list[Fragment|Tree]
 class SpellPart(Fragment,id="trickster:spell_part"):
@@ -17,7 +17,7 @@ class SpellPart(Fragment,id="trickster:spell_part"):
         self.subparts = subparts
         super().__init__()
     def decode(data: BytesIO):
-        glyph = decode_fragment(data)
+        glyph = unpack_fragment(data)
         instructions = []
         l1 = unpack("b",data.read(1))[0]
         for i in range(l1):
@@ -28,7 +28,7 @@ class SpellPart(Fragment,id="trickster:spell_part"):
                         d = unpack(">ib",v)
                         x = None
                         if d[0]==1:
-                            x = decode_fragment(data)
+                            x = unpack_fragment(data)
                         elif d[0]==2:
                             pass
                         instructions.append((d[0],x))
@@ -49,7 +49,7 @@ class SpellPart(Fragment,id="trickster:spell_part"):
         return byte
     def halfencode(self) -> bytes:
         byte = bytes()
-        byte+=(1).to_bytes(4)+b'\x01'+encode_fragment(self.glyph)
+        byte+=(1).to_bytes(4)+b'\x01'+pack_fragment(self.glyph)
         if len(self.subparts)>0:
             byte+=b'\x01\x01'+len(self.subparts*3).to_bytes()
             for part in self.subparts:
@@ -57,12 +57,12 @@ class SpellPart(Fragment,id="trickster:spell_part"):
                 byte+=part.halfencode()
                 byte+=(2).to_bytes(4)+b'\x00'
         return byte
-    def run_glyph(self) -> Fragment:
+    def run_glyph(self,args: list[Fragment]=[]) -> Fragment:
         if isinstance(self.glyph, Pattern):
-            args = []
+            frags = []
             for part in self.subparts:
-                args.append(part.run_glyph())
-            return callTrick(self.glyph,*args)
+                frags.append(part.run_glyph())
+            return callTrick(self.glyph,args,*frags)
         else:
             return self.glyph.copy()
     def __repr__(self):
@@ -87,13 +87,13 @@ class ListFragment(Fragment,id="trickster:list"):
     def decode(encoded: BytesIO):
         frgs = []
         for i in range(encoded.read(1)[0]):
-            frgs.append(decode_fragment(encoded))
+            frgs.append(unpack_fragment(encoded))
         return ListFragment(frgs)
     def encode(self):
         bite = bytes()
         bite+=len(self.fragments).to_bytes()
         for fragment in self.fragments:
-            bite+=encode_fragment(fragment)
+            bite+=pack_fragment(fragment)
         return bite
     def __repr__(self):
         return f"ListFragment({self.fragments})"
