@@ -1,10 +1,11 @@
-from base import Trick
-from fragments import Pattern,Fragment
-from metafragments import ListFragment
-from blunders import Blunder
+from spell.execution.executor import ExecutionState
+from spell.trick.tricks import Trick
+from spell.fragments import Pattern,Fragment
+from spell.metafragments import ListFragment
+from spell.blunders import Blunder
 def getArg(argument: int):
-    def getArgReturn(args: list[Fragment]) -> Fragment:
-        arg = args[argument]
+    def getArgReturn(ctx: ExecutionState) -> Fragment:
+        arg = ctx.args[argument]
         if arg==None:
             raise Blunder()
         else:
