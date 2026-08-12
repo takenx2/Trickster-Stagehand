@@ -1,36 +1,31 @@
 
 from spell.execution.defaultexec import DefaultSpellExecutor
-from spell.execution.executor import TickData
-from spell.fragments import NumberFragment,SpellPart,PatternGlyph
+from spell.fragments import NumberFragment,SpellPart,PatternGlyph,StringFragment
 # print(tricks.Trick.tricks)
 from spell.trick.eval import quiet_eval
 from spell.trick.arguments import *
 from spell.trick.basic import showcase
+from spell.trick.misc import suspend
 from spell.trick.math import add,multiply
+from transfer import *
 spell = SpellPart(
-    SpellPart(
-        PatternGlyph(quiet_eval.pattern),
-        SpellPart(PatternGlyph(arg1.pattern))
-    ),
-    SpellPart(
-        SpellPart(
-            None,
-            [
-                SpellPart(PatternGlyph(quiet_eval.pattern),
-                    SpellPart(PatternGlyph(arg1.pattern))
-                ),
-                SpellPart(PatternGlyph(showcase.pattern),
-                    SpellPart(NumberFragment(2))
-                )
-            ]
-        )
-    )
+    PatternGlyph(suspend.pattern),
+    [
+        SpellPart(NumberFragment(20))
+    ]
+    
 )
-try:
-    print("result:",DefaultSpellExecutor(spell).run_without_context("",TickData()))
-except Blunder as b:
-    print(str(b))
-# spell = SpellPart(
-#             PatternGlyph(add.pattern),
-#             [SpellPart(NumberFragment(2)),SpellPart(NumberFragment(2)),SpellPart(NumberFragment(3))]
-#         )
+exec = DefaultSpellExecutor(spell)
+# result = None
+# while result==None:
+#     try:
+#         result = exec.run_path_data("")
+#         sleep(1/20)
+#     except Blunder as b:
+#         print(str(b))
+#         break
+# else:
+#     print(result)
+
+dat = "YxMoKcpMzi4uSS2yKktNLskvYnZgwA4Ae57NsysAAAA="
+print(decompress_fragment(dat))

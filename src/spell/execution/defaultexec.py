@@ -1,5 +1,5 @@
 import spell.fragments as fragments
-from spell.execution.executor import ExecutionState, SpellExecutor,SpellInstruction,InstructType,Context,TickData
+from spell.execution.executor import ExecutionState,SpellInstruction,ExecFrameData,SpellExecutor,Context
 
 
 class DefaultSpellExecutor(SpellExecutor):
@@ -11,7 +11,7 @@ class DefaultSpellExecutor(SpellExecutor):
         self.state = state
         self.child: SpellExecutor|None = None
         self.overrideReturn: fragments.Fragment = None
-    def run_without_context(self,path:str,tickdata:TickData):
+    def run_path_data(self,path:str,tickdata:ExecFrameData=ExecFrameData()):
         return self.run(Context(self.state,path,tickdata))
     def run(self, ctx:Context) -> fragments.Fragment|None:
     #   print(len(self.root.subparts))
@@ -26,11 +26,11 @@ class DefaultSpellExecutor(SpellExecutor):
                 return None
             instruct = self.instructions.pop()
             match instruct.type:
-                case InstructType.ENTER_SCOPE:
+                case SpellInstruction.Type.ENTER_SCOPE:
                     if len(self.scope)>0:
                         self.state.trace.append(self.scope[-1])
                     self.scope.append(0)
-                case InstructType.EXIT_SCOPE:
+                case SpellInstruction.Type.EXIT_SCOPE:
                     self.scope.pop()
                     if len(self.scope)==0:
                         if self.overrideReturn!=None:
@@ -53,9 +53,9 @@ class DefaultSpellExecutor(SpellExecutor):
                         ret_value: fragments.Fragment = None
                         if len(self.instructions)>1:
                             for instruction in self.instructions:
-                                if instruction.type == InstructType.EXIT_SCOPE:
+                                if instruction.type == SpellInstruction.Type.EXIT_SCOPE:
                                     continue
-                                if (instruction.type == InstructType.FRAGMENT 
+                                if (instruction.type == SpellInstruction.Type.FRAGMENT 
                                 and isinstance(instruction.fragment,fragments.PatternGlyph) 
                                 and instruction.fragment.pattern.is_empty()):
                                     ret_value = fragments.VoidFragment()
@@ -70,7 +70,7 @@ class DefaultSpellExecutor(SpellExecutor):
                             if self.overrideReturn==None:
                                 self.overrideReturn = ret_value
                             self.state = result.state
-                            self.state.recursions -= 1
+                            self.state.unrecurse()
                             ctx = Context(self.state,ctx.path,ctx.data)
                         else:
                             self.child = result
@@ -80,7 +80,7 @@ class DefaultSpellExecutor(SpellExecutor):
                         self.inputs.append(result)
             ctx.data.executions+=1
     def runChild(self,ctx: Context) -> bool:
-        result = self.child.run_without_context(ctx.path,ctx.data)
+        result = self.child.run_path_data(ctx.path,ctx.data)
         if result == None:
             return False
         self.child = None

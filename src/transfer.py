@@ -11,7 +11,6 @@ def decompress_fragment(encoded: str) -> fragments.Fragment:
     format = decompressed[0]
     if format != 6:
         raise NotImplementedError("format versions other than six are not implemented.")
-    print(decompressed[1:])
     return unpack_fragment(decompressed[1:])
 def compress_fragment(fragment: fragments.Fragment) -> str:
     bite = pack_fragment(fragment)
@@ -30,7 +29,6 @@ def unpack_fragment(byteData: bytes|BytesIO) -> fragments.Fragment:
         if isinstance(ret,fragments.Fragment):
             return ret
         else:
-            
             return fragments.ZalgoFragment()
     return fragments.ZalgoFragment()
 def pack_fragment(fragment: fragments.Fragment) -> bytes:
@@ -40,3 +38,4 @@ def pack_fragment(fragment: fragments.Fragment) -> bytes:
     bite += bytes(id,"utf-8")
     bite += fragment.encode()
     return bite
+__all__ = ["pack_fragment","unpack_fragment","decompress_fragment","compress_fragment"]

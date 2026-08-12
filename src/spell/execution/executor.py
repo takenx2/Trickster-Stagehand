@@ -20,22 +20,25 @@ class ExecutionState:
                  arguments: tuple[fragments.Fragment],
                  delay:int=0,
                  recursions:int=0,
-                 stacktrace:list[int]=[],
-                 init_stacktrace_size:int=0):
+                 stacktrace:list[int]=[]):
         self.args = arguments
         self.delay = delay
         self.recursions = recursions
         self.trace = []
-        self.init_trace_size = init_stacktrace_size
+        self.init_trace_size = len(stacktrace)
         self.trace.extend(stacktrace)
-    def recurse(self,*args: fragments.Fragment):
+    def recurse(self,*args: fragments.Fragment) -> ExecutionState:
         if self.recursions+1>=MAX_DEPTH:
             raise ExecutionLimitReachedBlunder(self.trace)
         state = ExecutionState(args,0,self.recursions+1,self.trace.copy())
         state.trace.append(-2)
         return state
+    def unrecurse(self):
+        self.recursions -= 1
+        while len(self.trace)>=max(self.init_trace_size,-1):
+            self.trace.pop()
 EXEC_LIMIT = 255 #maybe?
-class TickData:
+class ExecFrameData:
     executions: int
     exec_limit: int
     killed: bool
@@ -48,8 +51,8 @@ class TickData:
 class Context:
     state: ExecutionState
     path: str
-    data: TickData = TickData()
-    def __init__(self,state: ExecutionState,path="",data=TickData()):
+    data: ExecFrameData
+    def __init__(self,state: ExecutionState,path="",data=ExecFrameData()):
         self.state = state
         self.path = path
         self.data = data
@@ -62,32 +65,33 @@ class SpellExecutor(ABC):
     @abstractmethod
     def run(self,ctx:Context) -> fragments.Fragment|None: ...
     @abstractmethod
-    def run_without_context(self,path:str,tickdata:TickData): ...
+    def run_path_data(self,path:str,execData:ExecFrameData) -> fragments.Fragment|None: ...
 
-class InstructType(IntEnum):
-    FRAGMENT = 1
-    ENTER_SCOPE = 2
-    EXIT_SCOPE = 3   
-    def from_id(id: int) -> InstructType:
-        match id:
-            case 1:
-                return InstructType.FRAGMENT
-            case 2:
-                return InstructType.ENTER_SCOPE
-            case 3:
-                return InstructType.EXIT_SCOPE
-            case _:
-                raise IndexError("that aint an instruction")
-    def __str__(self):
-        return self.name
 class SpellInstruction:
-    type: InstructType
+    class Type(IntEnum):
+        FRAGMENT = 1
+        ENTER_SCOPE = 2
+        EXIT_SCOPE = 3   
+        @classmethod
+        def from_id(cls,id: int) -> SpellInstruction.Type:
+            match id:
+                case 1:
+                    return cls.FRAGMENT
+                case 2:
+                    return cls.ENTER_SCOPE
+                case 3:
+                    return cls.EXIT_SCOPE
+                case _:
+                    raise IndexError("that aint an instruction")
+        def __str__(self):
+            return self.name
+    type: Type
     fragment: fragments.Fragment|None
-    def __init__(self,type: InstructType|int, fragment: fragments.Fragment = None):
-        if isinstance(type,InstructType):
+    def __init__(self,type: Type|int, fragment: fragments.Fragment = None):
+        if isinstance(type,SpellInstruction.Type):
             self.type = type
         else:
-            self.type = InstructType.from_id(type)
+            self.type = SpellInstruction.Type.from_id(type)
         self.fragment = fragment
     @classmethod
     def flatten_spell(cls,head: fragments.SpellPart) -> list[SpellInstruction]:
@@ -100,8 +104,8 @@ class SpellInstruction:
             current = headStack[-1]
             currentI = indexStack.pop()
             if (currentI == -1):
-                instructions.append(SpellInstruction(InstructType.EXIT_SCOPE))
-                instructions.append(SpellInstruction(InstructType.FRAGMENT,current.glyph))
+                instructions.append(SpellInstruction(SpellInstruction.Type.EXIT_SCOPE))
+                instructions.append(SpellInstruction(SpellInstruction.Type.FRAGMENT,current.glyph))
             currentI+=1
             if (currentI < len(current.subparts)):
                 headStack.append(current.subparts[-currentI])
@@ -109,7 +113,7 @@ class SpellInstruction:
                 indexStack.append(-1)
             else:
                 headStack.pop()
-                instructions.append(SpellInstruction(InstructType.ENTER_SCOPE))
+                instructions.append(SpellInstruction(SpellInstruction.Type.ENTER_SCOPE))
         return instructions
     @classmethod
     def decode(cls,instructs: list[SpellInstruction],rootGlyph: fragments.Fragment=None) -> fragments.SpellPart:
@@ -119,13 +123,13 @@ class SpellInstruction:
         while len(instructs)>0:
             inst = instructs.pop()
             match inst.type:
-                case InstructType.ENTER_SCOPE:
+                case SpellInstruction.Type.ENTER_SCOPE:
                     scope.append(0)
-                case InstructType.EXIT_SCOPE:
+                case SpellInstruction.Type.EXIT_SCOPE:
                     scope.pop()
                     if len(scope)>0:
                         scope[-1]+=1
-                case InstructType.FRAGMENT:
+                case SpellInstruction.Type.FRAGMENT:
                     args: list[fragments.SpellPart] = []
                     for i in range(scope[-1]):
                         args.append(pile.pop())

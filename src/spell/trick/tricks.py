@@ -6,23 +6,42 @@ from collections.abc import Callable
 from spell.blunders import Blunder
 
 
-class SignatureBlunder(Blunder):
+class TrickBlunder(Blunder):
     trick: Trick
     inputs: tuple[fragments.Fragment]
-    def __init__(self, trick,*inputs):
+    def __init__(self, trace: list[int], trick : Trick):
+        super().__init__(trace)
         self.trick = trick
-        self.inputs = inputs
     def __str__(self):
-        e = ""
-        for inp in self.inputs:
-            e+=inp.plain_name+", "
-        return f'Invalid inputs for spell "{self.trick.name}": ({e[:-2]})'
+        return f'"{self.trick.name}": '
+class InvalidSignature(TrickBlunder):
+    given: tuple[fragments.Fragment]
+    def __init__(self, trace:list[int], trick:Trick,*inputs:fragments.Fragment):
+        super().__init__(trace, trick)
+        self.given = inputs
+    def __str__(self):
+        e = super().__str__()+"Invalid inputs, the following signatures are valid for this trick:"
+        for signature in self.trick.signatures:
+            
+            x = ""
+            frags = signature[0]
+            for frag in frags:
+                if frag == "...":
+                    x += "..."
+                else:
+                    x+=", "+frag.__name__
+            e+="\n- "+x[2:]
+        z = ""
+        for inp in self.given:
+            z+=repr(inp)+", "
+        e+="\nThe following inputs were given: "+z[:-2]
+        return e
 class UnknownTrickBlunder(Blunder):
-    pattern: Pattern
-    def __init__(self, pattern: Pattern):
+    pattern: fragments.Pattern
+    def __init__(self, pattern: fragments.Pattern):
         self.pattern = pattern
     def __str__(self):
-        return f"Unknown Trick with pattern: {self.pattern}"
+        return f'{self.pattern}'
 type Various = type[fragments.Fragment]|Literal["..."]
 type TrickFunction = Callable[[ExecutionState,tuple[fragments.Fragment,...]],fragments.Fragment|SpellExecutor]
 class Trick():
@@ -54,7 +73,7 @@ class Trick():
             l = None
             for argument in args:
                 if v==None:
-                    raise SignatureBlunder(self)
+                    raise InvalidSignature(ctx.state.trace,self,*args)
                 z: type[fragments.Fragment] = None
                 tup = (v=="...")
                 if tup:
@@ -76,7 +95,7 @@ class Trick():
                 if next(x,None)==None:
                     break
         else:
-            raise SignatureBlunder(self,*args)
+            raise InvalidSignature(ctx.state.trace,self,*args)
         return signature[1](ctx,*args)
 def callTrick(pattern: fragments.Pattern,ctx:Context,args:tuple[fragments.Fragment]) -> fragments.Fragment|SpellExecutor:
     trick = Trick.tricks.get(pattern)

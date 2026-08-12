@@ -38,16 +38,16 @@ class Fragment(ABC):
         return False
 class AddableFragment(Fragment):
     @abstractmethod
-    def add(self,other: AddableFragment) -> AddableFragment: ...
+    def add(self,other: AddableFragment) -> AddableFragment|None: ...
 class SubtractableFragment(Fragment):
     @abstractmethod
-    def sub(self,other: SubtractableFragment) -> SubtractableFragment: ...
+    def sub(self,other: SubtractableFragment) -> SubtractableFragment|None: ...
 class DivisibleFragment(Fragment):
     @abstractmethod
-    def div(self,other: DivisibleFragment) -> DivisibleFragment: ...
+    def div(self,other: DivisibleFragment) -> DivisibleFragment|None: ...
 class MultiplicableFragment(Fragment):
     @abstractmethod
-    def mul(self,other: MultiplicableFragment) -> MultiplicableFragment: ...
+    def mul(self,other: MultiplicableFragment) -> MultiplicableFragment|None: ...
 class MappableFragment[T](Fragment):
     value: T
     def __init__(self,value:T):
@@ -72,18 +72,18 @@ class NumberFragment(AddableFragment,SubtractableFragment,MultiplicableFragment,
     def add(self,other):
         if isinstance(other,NumberFragment):
             return NumberFragment(self.value+other.value)
-        raise ArithmeticBlunder
+        return None
     def mul(self, other):
         if isinstance(other,NumberFragment):
             return NumberFragment(self.value*other.value)
-        raise ArithmeticBlunder
+        raise None
     def sub(self, other):
         if isinstance(other,NumberFragment):
             return NumberFragment(self.value-other.value)
-        raise ArithmeticBlunder
+        raise None
     def __str__(self):
         return f"{self.value:.2f}"
-class StringFragment(MappableFragment[str],id="trickster:string"):
+class StringFragment(AddableFragment,MappableFragment[str],id="trickster:string"):
     plain_name = "String"
     def decode(encoded: BytesIO):
         size = encoded.read(1)[0]
@@ -93,6 +93,9 @@ class StringFragment(MappableFragment[str],id="trickster:string"):
         Bite+=len(self.value).to_bytes()
         Bite+=bytes(self.value,"utf-8")
         return Bite
+    def add(self, other):
+        if isinstance(other,StringFragment):
+            return StringFragment(self.value+other.value)
 class BooleanFragment(MappableFragment[bool],id="trickster:boolean"):
     plain_name = "Boolean"
     def decode(encoded: BytesIO):
@@ -260,14 +263,14 @@ class Pattern(Fragment,id="trickster:pattern_literal"):
                     break
             
             if not found:
-                s+="|"
+                s+="+"
                 try:
                     term.remove(last)
                 except:
                     pass
                 last = None
         s+=str(last)
-        return f"\\{s}\\"
+        return f"<{s}>"
     def get_terminal(self) -> list[int]:
         dots = [False]*9
         for entry in self.entries:
@@ -293,9 +296,8 @@ class SpellPart(Fragment,id="trickster:spell_part"):
             glyph = PatternGlyph()
         self.glyph = glyph
         if isinstance(subparts,SpellPart):
-            self.subparts = [subparts]
-        else:
-           self.subparts = subparts
+            subparts = [subparts]
+        self.subparts = subparts
         super().__init__()
     def decode(data: BytesIO):
         glyph = transfer.unpack_fragment(data)
@@ -320,7 +322,7 @@ class SpellPart(Fragment,id="trickster:spell_part"):
             byte+=b'\x01'+len(instructions).to_bytes(1)
             for instruct in instructions:
                 byte+=instruct.type.to_bytes(4)
-                if instruct.type == executor.InstructType.FRAGMENT:
+                if instruct.type == executor.SpellInstruction.Type.FRAGMENT:
                     byte+=b'\x01'+transfer.pack_fragment(instruct.fragment)
                 else:
                     byte+=b'\x00'
@@ -355,4 +357,31 @@ class PatternGlyph(Fragment,id="trickster:pattern"):
     def __repr__(self):
         return f"PatternGlyph({repr(self.pattern)})"
     def __str__(self):
-        return f'"{str(self.pattern)}"'
+        return f'/{str(self.pattern)[1:-1]}/'
+class VectorFragment(AddableFragment,SubtractableFragment,MultiplicableFragment,DivisibleFragment,Fragment,id="trickster:vector"):
+    x: float
+    y: float
+    z: float
+    def __init__(self,x:float=0,y:float=0,z:float=0):
+        self.x = x
+        self.y = y
+        self.z = z
+    def add(self, other):
+        if isinstance(other,VectorFragment):
+            return VectorFragment(self.x+other.x,self.y+other.y,self.z+other.z)
+    def sub(self, other):
+        if isinstance(other,VectorFragment):
+            return VectorFragment(self.x-other.x,self.y-other.y,self.z-other.z)
+    def mul(self, other):
+        if isinstance(other,NumberFragment):
+            return VectorFragment(self.x*other.value,self.y*other.value,self.z*other.value)
+    def div(self, other):
+        if isinstance(other,NumberFragment):
+            return VectorFragment(self.x/other.value,self.y/other.value,self.z/other.value)
+    def __str__(self):
+        return f"({self.x:.2f}, {self.y:.2f}, {self.z:.2f})"
+    def decode(encoded: BytesIO):
+            encoded.read(1)
+            return VectorFragment(*struct.unpack(">ddd",encoded.read(24)))
+    def encode(self):
+        return struct.pack(">ddd",self.x,self.y,self.z)
