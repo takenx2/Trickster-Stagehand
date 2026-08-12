@@ -8,6 +8,7 @@ from spell.blunders import *
 from copy import deepcopy
 from random import randrange
 import spell.execution.executor as executor
+import spell.execution.defaultexec as defaultexec
 import spell.trick.tricks as tricks
 import transfer
 class Fragment(ABC):
@@ -29,7 +30,7 @@ class Fragment(ABC):
     def encode(self) -> bytes: ...
     def hash_that_can_lie(self) -> int:
         return hash(self)
-    def activate(self) -> Fragment|executor.SpellExecutor:
+    def activate(self,ctx:executor.Context,args:tuple[Fragment]) -> Fragment|executor.SpellExecutor:
         """this also returns spell executors, sometimes.
         dw about it. <3"""
         return self.copy()
@@ -173,7 +174,7 @@ def sort_with(tup: tuple[int,int]):
 class Pattern(Fragment,id="trickster:pattern_literal"):
     plain_name = "Pattern"
     entries: set[tuple[int,int]]
-    def __init__(self,entries: set[tuple[int,int]]):
+    def __init__(self,entries: set[tuple[int,int]]=[]):
         self.entries = set(entries)
     def fromBytes(bites: bytes) -> Pattern:
         lyst: set[tuple[int,int]] = set()
@@ -188,7 +189,7 @@ class Pattern(Fragment,id="trickster:pattern_literal"):
         return Pattern(lyst)
     def __hash__(self):
         return hash(self.toInt())
-    def equals(self, other):
+    def __eq__(self, other):
         if isinstance(other,Pattern):
             return self.toInt()==other.toInt()
         return super().equals(other)
@@ -285,11 +286,16 @@ class SpellPart(Fragment,id="trickster:spell_part"):
     glyph: Fragment
     subparts: list[SpellPart]
     plain_name= "Spell Part"
-    def __init__(self,glyph: Fragment=Pattern([]),subparts: list[SpellPart]|None = None):
+    def __init__(self,glyph: Fragment=None,subparts: SpellPart|list[SpellPart]|None = None):
         if subparts==None:
             subparts=[]
+        if glyph==None:
+            glyph = PatternGlyph()
         self.glyph = glyph
-        self.subparts = subparts
+        if isinstance(subparts,SpellPart):
+            self.subparts = [subparts]
+        else:
+           self.subparts = subparts
         super().__init__()
     def decode(data: BytesIO):
         glyph = transfer.unpack_fragment(data)
@@ -329,15 +335,24 @@ class SpellPart(Fragment,id="trickster:spell_part"):
             return f"({self.glyph}:[{e[:-2]}])"
         else:
             return f'({self.glyph})' 
+    def activate(self, ctx, args):
+        if len(args)==0:
+            return super().activate(ctx, args)
+        else:
+            return defaultexec.DefaultSpellExecutor(self,ctx.state.recurse(*args))
     def is_empty(self):
         return len(self.subparts)==0 and (isinstance(self.glyph,Pattern) and self.glyph.is_empty())
 class PatternGlyph(Fragment,id="trickster:pattern"):
 
-    def __init__(self,pattern:Pattern):
+    def __init__(self,pattern:Pattern=Pattern()):
         self.pattern = pattern
     def encode(self):
         return self.pattern.encode()
     def decode(encoded):
         return PatternGlyph(Pattern.decode(encoded))
-    def activate(self):
-        return tricks.callTrick(self,)
+    def activate(self,ctx,args):
+        return tricks.callTrick(self.pattern,ctx,args)
+    def __repr__(self):
+        return f"PatternGlyph({repr(self.pattern)})"
+    def __str__(self):
+        return f'"{str(self.pattern)}"'

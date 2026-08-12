@@ -1,6 +1,6 @@
 from __future__ import annotations
 import spell.fragments as fragments
-from spell.execution.executor import ExecutionState, SpellExecutor
+from spell.execution.executor import ExecutionState, SpellExecutor,Context
 from typing import Literal
 from collections.abc import Callable
 from spell.blunders import Blunder
@@ -8,7 +8,7 @@ from spell.blunders import Blunder
 
 class SignatureBlunder(Blunder):
     trick: Trick
-    inputs: tuple[fragments.Fragments.Fragment]
+    inputs: tuple[fragments.Fragment]
     def __init__(self, trick,*inputs):
         self.trick = trick
         self.inputs = inputs
@@ -46,7 +46,7 @@ class Trick():
         return ret
     def __repr__(self):
         return f"Trick({self.name},{self.signatures})"
-    def activate(self,ctx:ExecutionState,args:list[fragments.Fragment]) -> fragments.Fragment|SpellExecutor:
+    def activate(self,ctx:Context,args:list[fragments.Fragment]) -> fragments.Fragment|SpellExecutor:
         for signature in self.signatures:
             #print(signature)
             x = iter(signature[0])
@@ -78,8 +78,10 @@ class Trick():
         else:
             raise SignatureBlunder(self,*args)
         return signature[1](ctx,*args)
-def callTrick(pattern: fragments.Pattern,ctx:ExecutionState,args:tuple[fragments.Fragment]) -> fragments.Fragment|SpellExecutor:
+def callTrick(pattern: fragments.Pattern,ctx:Context,args:tuple[fragments.Fragment]) -> fragments.Fragment|SpellExecutor:
     trick = Trick.tricks.get(pattern)
     if trick==None:
+        for p in Trick.tricks.keys():
+            print(p.toInt()==pattern.toInt())
         raise UnknownTrickBlunder(pattern)
     return trick.activate(ctx,args)

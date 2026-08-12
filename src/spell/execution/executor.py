@@ -1,46 +1,68 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import IntEnum
 
 from spell.blunders import Blunder
 import spell.fragments as fragments
 
-class ExecutionLimitReacheBlunder(Blunder):
+class ExecutionLimitReachedBlunder(Blunder):
     pass
-EXEC_LIMIT = 255
+MAX_DEPTH = 255
 
 class ExecutionState:
-    args: list[Fragment]
-    directory: str
+    args: tuple[fragments.Fragment]
     delay: int
-    executions: int
+    recursions: int
     trace: list[int]
     init_trace_size: int
     def __init__(self,
-                 arguments: list[Fragment],
+                 arguments: tuple[fragments.Fragment],
                  delay:int=0,
-                 executions:int=0,
                  recursions:int=0,
                  stacktrace:list[int]=[],
-                 init_stacktrace_size:int=0,
-                 directory:str=None,):
+                 init_stacktrace_size:int=0):
         self.args = arguments
-        self.directory = directory
         self.delay = delay
-        self.executions = executions
+        self.recursions = recursions
         self.trace = []
         self.init_trace_size = init_stacktrace_size
         self.trace.extend(stacktrace)
-    def exec_limit_reached(self) -> bool:
-        return self.executions > EXEC_LIMIT
+    def recurse(self,*args: fragments.Fragment):
+        if self.recursions+1>=MAX_DEPTH:
+            raise ExecutionLimitReachedBlunder(self.trace)
+        state = ExecutionState(args,0,self.recursions+1,self.trace.copy())
+        state.trace.append(-2)
+        return state
+EXEC_LIMIT = 255 #maybe?
+class TickData:
+    executions: int
+    exec_limit: int
+    killed: bool
+    def __init__(self,limit: int=EXEC_LIMIT):
+        self.executions = 0
+        self.killed = False
+        self.exec_limit = limit
+    def exec_limit_reached(self):
+        return self.killed or self.executions >= self.exec_limit
+class Context:
+    state: ExecutionState
+    path: str
+    data: TickData = TickData()
+    def __init__(self,state: ExecutionState,path="",data=TickData()):
+        self.state = state
+        self.path = path
+        self.data = data
 class SpellExecutor(ABC):
-    def single_frame_run(self,ctx: ExecutionState) -> Fragment:
+    def single_frame_run(self,ctx: Context) -> fragments.Fragment:
         result = self.run(ctx)
         if result==None:
-            raise ExecutionLimitReacheBlunder()
+            raise ExecutionLimitReachedBlunder()
         return result
     @abstractmethod
-    def run(self,ctx:ExecutionState) -> Fragment|None: ...
+    def run(self,ctx:Context) -> fragments.Fragment|None: ...
+    @abstractmethod
+    def run_without_context(self,path:str,tickdata:TickData): ...
 
 class InstructType(IntEnum):
     FRAGMENT = 1

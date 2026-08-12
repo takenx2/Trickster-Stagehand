@@ -1,14 +1,36 @@
-# from spell.trick.base import show
-# import transfer
-# from spell import metafragments
 
-# read = input("ENTER FRAGMENT > ")
-
-# fragment = transfer.decompress_fragment(read)
-# if isinstance(fragment,metafragments.SpellPart):
-#     show(fragment)
-#     fragment=fragment.run_glyph()
-# show(fragment)
-import os,math
-from spell.metafragments import SpellPart
-from spell.fragments import VoidFragment
+from spell.execution.defaultexec import DefaultSpellExecutor
+from spell.execution.executor import TickData
+from spell.fragments import NumberFragment,SpellPart,PatternGlyph
+# print(tricks.Trick.tricks)
+from spell.trick.eval import quiet_eval
+from spell.trick.arguments import *
+from spell.trick.basic import showcase
+from spell.trick.math import add,multiply
+spell = SpellPart(
+    SpellPart(
+        PatternGlyph(quiet_eval.pattern),
+        SpellPart(PatternGlyph(arg1.pattern))
+    ),
+    SpellPart(
+        SpellPart(
+            None,
+            [
+                SpellPart(PatternGlyph(quiet_eval.pattern),
+                    SpellPart(PatternGlyph(arg1.pattern))
+                ),
+                SpellPart(PatternGlyph(showcase.pattern),
+                    SpellPart(NumberFragment(2))
+                )
+            ]
+        )
+    )
+)
+try:
+    print("result:",DefaultSpellExecutor(spell).run_without_context("",TickData()))
+except Blunder as b:
+    print(str(b))
+# spell = SpellPart(
+#             PatternGlyph(add.pattern),
+#             [SpellPart(NumberFragment(2)),SpellPart(NumberFragment(2)),SpellPart(NumberFragment(3))]
+#         )
