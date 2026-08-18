@@ -1,2 +1,3 @@
+### Notice: Now on [Codeberg](https://codeberg.org/Takenx2/Trickster-Stagehand); felt fitting.
 *Very* Work In Progress Non-Minecraft [Trickster](https://modrinth.com/mod/trickster) Editor
 Its uh. barely *there* right now but... it is work in progress...
