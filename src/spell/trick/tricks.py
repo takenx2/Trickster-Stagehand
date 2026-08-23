@@ -1,6 +1,6 @@
 from __future__ import annotations
 import spell.fragments as fragments
-from spell.execution.executor import ExecutionState, SpellExecutor,Context
+from spell.execution import ExecutionState, SpellExecutor,Context
 from typing import Literal
 from collections.abc import Callable
 from spell.blunders import Blunder
@@ -38,10 +38,11 @@ class InvalidSignature(TrickBlunder):
         return e
 class UnknownTrickBlunder(Blunder):
     pattern: fragments.Pattern
-    def __init__(self, pattern: fragments.Pattern):
+    def __init__(self, trace,pattern: fragments.Pattern):
+        super().__init__(trace)
         self.pattern = pattern
     def __str__(self):
-        return f'{self.pattern}'
+        return "Unknown Trick!"
 type Various = type[fragments.Fragment]|Literal["..."]
 type TrickFunction = Callable[[ExecutionState,tuple[fragments.Fragment,...]],fragments.Fragment|SpellExecutor]
 class Trick():
@@ -73,7 +74,8 @@ class Trick():
             l = None
             for argument in args:
                 if v==None:
-                    raise InvalidSignature(ctx.state.trace,self,*args)
+                    #raise InvalidSignature(ctx.state.trace,self,*args)
+                    break
                 z: type[fragments.Fragment] = None
                 tup = (v=="...")
                 if tup:
@@ -100,7 +102,5 @@ class Trick():
 def callTrick(pattern: fragments.Pattern,ctx:Context,args:tuple[fragments.Fragment]) -> fragments.Fragment|SpellExecutor:
     trick = Trick.tricks.get(pattern)
     if trick==None:
-        for p in Trick.tricks.keys():
-            print(p.toInt()==pattern.toInt())
-        raise UnknownTrickBlunder(pattern)
+        raise UnknownTrickBlunder(ctx.state.trace,pattern)
     return trick.activate(ctx,args)

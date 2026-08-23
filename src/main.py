@@ -1,31 +1,24 @@
-
-from spell.execution.defaultexec import DefaultSpellExecutor
-from spell.fragments import NumberFragment,SpellPart,PatternGlyph,StringFragment
-# print(tricks.Trick.tricks)
-from spell.trick.eval import quiet_eval
+import util
+from spell.fragments import SpellPart,NumberFragment,StringFragment,PatternGlyph,PathFragment
+from spell.execution import DefaultSpellExecutor
 from spell.trick.arguments import *
-from spell.trick.basic import showcase
-from spell.trick.misc import suspend
-from spell.trick.math import add,multiply
-from transfer import *
+from spell.trick.exec import grand
+from spell.trick.math import multiply
+from spell.trick.misc import suspend,showcase
+from spell.trick.stagehand import input
+import math,time,io,transfer
+from pathlib import Path
 spell = SpellPart(
-    PatternGlyph(suspend.pattern),
-    [
-        SpellPart(NumberFragment(20))
-    ]
-    
+    PatternGlyph(showcase.pattern),
+    SpellPart(PatternGlyph(input.pattern),SpellPart(NumberFragment(-1)))
 )
 exec = DefaultSpellExecutor(spell)
-# result = None
-# while result==None:
-#     try:
-#         result = exec.run_path_data("")
-#         sleep(1/20)
-#     except Blunder as b:
-#         print(str(b))
+path = Path("~","Pictures")
+print(transfer.compress_fragment(spell))
+# while True:1
+#     time.sleep(1/20)
+#     ret = exec.run(Path())
+#     if ret!=None:
+#         #print(ret)
 #         break
-# else:
-#     print(result)
-
-dat = "YxMoKcpMzi4uSS2yKktNLskvYnZgwA4Ae57NsysAAAA="
-print(decompress_fragment(dat))
+print(pyside.Qt)

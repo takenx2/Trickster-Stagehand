@@ -28,11 +28,11 @@ def unpack_fragment(byteData: bytes|BytesIO) -> fragments.Fragment:
         ret = frag.decode(data)
         if isinstance(ret,fragments.Fragment):
             return ret
-        else:
-            return fragments.ZalgoFragment()
+    else:
+        print(data.getvalue())
     return fragments.ZalgoFragment()
 def pack_fragment(fragment: fragments.Fragment) -> bytes:
-    id = next((k for k, v in fragments.Fragment._fragments.items() if v == type(fragment)), None)
+    id = fragments.Fragment.lookup(fragment)
     bite = bytes()
     bite += len(id).to_bytes()
     bite += bytes(id,"utf-8")

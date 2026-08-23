@@ -1,4 +1,4 @@
-from spell.execution.executor import Context
+from spell.execution import Context
 from spell.trick.tricks import Trick
 from spell.fragments import Pattern,Fragment,ListFragment
 from spell.blunders import Blunder

@@ -1,7 +1,7 @@
 from spell.blunders import Blunder
 from spell.fragments import Pattern,VectorFragment,NumberFragment
 from spell.trick.tricks import Trick
-from spell.execution.executor import Context
+from spell.execution import Context
 import math
 merge_vector = Trick(Pattern.of(1, 3, 4, 5, 1, 4, 7),"Absorption Distortion")
 @merge_vector()

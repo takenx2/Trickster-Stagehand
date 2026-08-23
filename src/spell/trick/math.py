@@ -1,7 +1,7 @@
 from spell.blunders import Blunder
 from spell.fragments import AddableFragment,SubtractableFragment,MultiplicableFragment,DivisibleFragment,Pattern,Fragment
 from spell.trick.tricks import Trick
-from spell.execution.executor import Context
+from spell.execution import Context
 
 class ArithmeticBlunder(Blunder):
     types: tuple[Fragment,Fragment]
